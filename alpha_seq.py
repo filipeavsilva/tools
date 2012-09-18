@@ -45,6 +45,12 @@ def base10toN(num,n):
 	return new_num_string
 
 def generate_alphaseq(start, iterations, string, symbol):
+	#Handle the case where the string is empty
+	if len(string) == 0:
+		if len(symbol) == 0:
+			symbol = '%'
+		string = symbol
+
 	i = int(start)
 	end = i + int(iterations)
 	while i <= end:
@@ -53,9 +59,18 @@ def generate_alphaseq(start, iterations, string, symbol):
 		i += 1
 
 argv = sys.argv
-if len(argv) != 5:
+if len(argv) < 3:
 	print('Usage: generate.py start_number num_iterations string symbol_replace')
 	print('\tstring: String where each of the generated numbers will be included.')
 	print('\tsymbol_replace: character(s) which will be replaced, in the string, for the generated numbers')
 else:
-	generate_alphaseq(argv[1], argv[2], argv[3], argv[4])
+	if len(argv) < 5:
+		symbol = ''
+		if len(argv) < 4:
+			string = ''
+		else:
+			string = argv[3]
+	else:
+		symbol = argv[4]
+
+	generate_alphaseq(argv[1], argv[2], string, symbol)
