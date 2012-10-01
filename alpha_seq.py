@@ -1,4 +1,6 @@
 import sys
+import argparse
+import re
 import alpha_luhn
 
 def base10toN(num,n):
@@ -44,34 +46,80 @@ def base10toN(num,n):
 		current=current/n
 	return new_num_string
 
-def generate_alphaseq(start, iterations, string, symbol):
+def generate_alphaseq(start, iterations, string, symbol, filename, silent, forbidden):
 	#Handle the case where the string is empty
 	if len(string) == 0:
 		if len(symbol) == 0:
 			symbol = '%'
 		string = symbol
 
-	i = int(start)
-	end = i + int(iterations)
+	iStart = int(start)
+	i = int(iStart)
+	end = i + int(iterations) - 1
+	strToFile = ''
 	while i <= end:
 		ib = base10toN(i, 36)
-		print(string.replace(symbol,  ib + str(alpha_luhn.return_checkdigit(ib))))
-		i += 1
+		num = ib + str(alpha_luhn.return_checkdigit(ib))
 
-argv = sys.argv
-if len(argv) < 3:
-	print('Usage: generate.py start_number num_iterations string symbol_replace')
-	print('\tstring: String where each of the generated numbers will be included.')
-	print('\tsymbol_replace: character(s) which will be replaced, in the string, for the generated numbers')
-else:
-	if len(argv) < 5:
-		symbol = ''
-		if len(argv) < 4:
-			string = ''
+		#Check if the number is in the forbidden word list
+		good = True
+		for regex in forbidden:
+			if regex.match(num):
+				good = False
+				break
+
+		if good:
+			if not silent:
+				print(string.replace(symbol, num)) #Prints the generated number
+
+			strToFile += num + '\n'
 		else:
-			string = argv[3]
-	else:
-		string = argv[3]
-		symbol = argv[4]
+			#If the generated number is not acceptable, add 1 to the end var to assure the requested amount of numbers is generated
+			end += 1
 
-	generate_alphaseq(argv[1], argv[2], string, symbol)
+		i += 1
+	
+	if filename != '':
+		try:
+			listFile = open(filename, 'w')
+			listFile.write(strToFile)
+			listFile.close()
+		except:
+			sys.stderr.write('Error when writing to file \'' + filename + '\'')
+
+#Main
+
+#Argument parser
+parser = argparse.ArgumentParser(description='Generates a list of sequential alphanumeric strings')
+
+parser.add_argument('start_number', help='The starting number (alphanumeric) of the sequence')
+parser.add_argument('iterations', help='The (integer) number of iterations to include in the list', type=int)
+
+parser.add_argument('-s', '--string', help='String where each of the generated numbers will be included.', default='')
+parser.add_argument('-r', '--symbol-replace', help='Substring which will be replaced, in the string, for the generated numbers.', default='')
+parser.add_argument('-o', '--output', help='Name of the file to which the list of generated numbers will be written. If empty, the list will only be output to the screen. If empty and --silent is specified, the script exits with an error.', default='')
+parser.add_argument('-sl', '--silent', help='If specified, the generated numbers will not be printed to the screen. If specified and --output is not specified, the script exits with an error.', action='store_true')
+parser.add_argument('-x', '--excluded-words', help='Word (or list of words, separated by commas (",") ) to exclude from the output. Wildcards "?" and "*" may be used to specify ranges of words.', default='')
+parser.add_argument('-xf', '--excluded-word-file', help='Name of a file containing a list of words (one per line) to exclude from the output. Wildcards "?" and "*" may be used to specify ranges of words.', default='')
+
+args = parser.parse_args()
+
+if args.silent and args.list_filename == '':
+	print('Error: If silent mode is enabled, a filename must be specified.')
+else:
+	nonoes = []
+
+	if args.excluded_words != '':
+		for word in args.excluded_words.split(','):
+			if word.strip() != '':
+				nonoes.append(re.compile('.*' + word.strip().upper().replace('*', '[A-Z0-9]*').replace('?', '[A-Z0-9]?') + '.*'))
+
+	if args.excluded_word_file != '':
+		try:
+			fnono = open(args.excluded_word_file, 'r')
+			for line in fnono:
+				nonoes.append(re.compile('.*' + line.strip().upper().replace('*', '[A-Z0-9]*').replace('?', '[A-Z0-9]?') + '.*'))
+		except:
+			pass
+
+	generate_alphaseq(args.start_number, args.iterations, args.string, args.symbol_replace, args.output, args.silent, nonoes)
