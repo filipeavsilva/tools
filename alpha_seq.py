@@ -46,7 +46,7 @@ def base10toN(num,n):
 		current=current/n
 	return new_num_string
 
-def generate_alphaseq(start, iterations, string, symbol, filename, silent, forbidden):
+def generate_alphaseq(start, iterations, string, symbol, filename, silent, forbidden, check_digit):
 	#Handle the case where the string is empty
 	if len(string) == 0:
 		if len(symbol) == 0:
@@ -59,7 +59,9 @@ def generate_alphaseq(start, iterations, string, symbol, filename, silent, forbi
 	strToFile = ''
 	while i <= end:
 		ib = base10toN(i, 36)
-		num = ib + str(alpha_luhn.return_checkdigit(ib))
+		num = ib
+		if check_digit:
+			num = num + str(alpha_luhn.return_checkdigit(ib))
 
 		#Check if the number is in the forbidden word list
 		good = True
@@ -88,38 +90,50 @@ def generate_alphaseq(start, iterations, string, symbol, filename, silent, forbi
 			sys.stderr.write('Error when writing to file \'' + filename + '\'')
 
 #Main
+if __name__ == '__main__':
+	#Argument parser
+	parser = argparse.ArgumentParser(description='Generates a list of sequential alphanumeric strings')
 
-#Argument parser
-parser = argparse.ArgumentParser(description='Generates a list of sequential alphanumeric strings')
+	parser.add_argument('start_number', help='The starting number (alphanumeric) of the sequence. If --convert is specified, this parameter is used as the number to convert.')
+	parser.add_argument('iterations', help='The (integer) number of iterations to include in the list.', nargs='?', default=-1, type=int)
 
-parser.add_argument('start_number', help='The starting number (alphanumeric) of the sequence')
-parser.add_argument('iterations', help='The (integer) number of iterations to include in the list', type=int)
+	parser.add_argument('-s', '--string', help='String where each of the generated numbers will be included.', default='')
+	parser.add_argument('-r', '--symbol-replace', help='Substring which will be replaced, in the string, for the generated numbers.', default='')
+	parser.add_argument('-o', '--output', help='Name of the file to which the list of generated numbers will be written. If empty, the list will only be output to the screen. If empty and --silent is specified, the script exits with an error.', default='')
+	parser.add_argument('-sl', '--silent', help='If specified, the generated numbers will not be printed to the screen. If specified and --output is not specified, the script exits with an error.', action='store_true')
+	parser.add_argument('-x', '--excluded-words', help='Word (or list of words, separated by commas (",") ) to exclude from the output. Wildcards "?" and "*" may be used to specify ranges of words.', default='')
+	parser.add_argument('-xf', '--excluded-word-file', help='Name of a file containing a list of words (one per line) to exclude from the output. Wildcards "?" and "*" may be used to specify ranges of words.', default='')
+	parser.add_argument('-c', '--convert', help='Prints the alphanumeric equivalent of the number inserted as start_number (effectively converts it to base 36. Useful for testing)', action='store_true')
+	parser.add_argument('-cd', '--check-digit', help='If specified, the generated numbers will have a check digit appended to them.', action='store_true')
+	
 
-parser.add_argument('-s', '--string', help='String where each of the generated numbers will be included.', default='')
-parser.add_argument('-r', '--symbol-replace', help='Substring which will be replaced, in the string, for the generated numbers.', default='')
-parser.add_argument('-o', '--output', help='Name of the file to which the list of generated numbers will be written. If empty, the list will only be output to the screen. If empty and --silent is specified, the script exits with an error.', default='')
-parser.add_argument('-sl', '--silent', help='If specified, the generated numbers will not be printed to the screen. If specified and --output is not specified, the script exits with an error.', action='store_true')
-parser.add_argument('-x', '--excluded-words', help='Word (or list of words, separated by commas (",") ) to exclude from the output. Wildcards "?" and "*" may be used to specify ranges of words.', default='')
-parser.add_argument('-xf', '--excluded-word-file', help='Name of a file containing a list of words (one per line) to exclude from the output. Wildcards "?" and "*" may be used to specify ranges of words.', default='')
+	args = parser.parse_args()
 
-args = parser.parse_args()
+	if args.silent and args.list_filename == '':
+		print('Error: If silent mode is enabled, a filename must be specified.')
+	else:
+		if args.convert: #Just convert the number
+			num = base10toN(int(args.start_number), 36)
+			if args.check_digit:
+				num = num + str(alpha_luhn.return_checkdigit(num))
+			print(num)
+		else:
+			if args.iterations == -1:
+				print('Error: If --convert is not specified, a number of iterations must be inserted.')
+			nonoes = []
 
-if args.silent and args.list_filename == '':
-	print('Error: If silent mode is enabled, a filename must be specified.')
-else:
-	nonoes = []
+			if args.excluded_words != '':
+				for word in args.excluded_words.split(','):
+					if word.strip() != '':
+						nonoes.append(re.compile('.*' + word.strip().upper().replace('*', '[A-Z0-9]*').replace('?', '[A-Z0-9]?') + '.*'))
 
-	if args.excluded_words != '':
-		for word in args.excluded_words.split(','):
-			if word.strip() != '':
-				nonoes.append(re.compile('.*' + word.strip().upper().replace('*', '[A-Z0-9]*').replace('?', '[A-Z0-9]?') + '.*'))
+			if args.excluded_word_file != '':
+				try:
+					fnono = open(args.excluded_word_file, 'r')
+					for line in fnono:
+						nonoes.append(re.compile('.*' + line.strip().upper().replace('*', '[A-Z0-9]*').replace('?', '[A-Z0-9]?') + '.*'))
+				except:
+					print('ERROR!!!')
+					pass
 
-	if args.excluded_word_file != '':
-		try:
-			fnono = open(args.excluded_word_file, 'r')
-			for line in fnono:
-				nonoes.append(re.compile('.*' + line.strip().upper().replace('*', '[A-Z0-9]*').replace('?', '[A-Z0-9]?') + '.*'))
-		except:
-			pass
-
-	generate_alphaseq(args.start_number, args.iterations, args.string, args.symbol_replace, args.output, args.silent, nonoes)
+			generate_alphaseq(args.start_number, args.iterations, args.string, args.symbol_replace, args.output, args.silent, nonoes, args.check_digit)
